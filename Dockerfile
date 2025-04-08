@@ -4,6 +4,9 @@
 # For Java 11, try this
 FROM adoptopenjdk/openjdk11:alpine-jre
 
+# Install tree command
+RUN apk update && apk add --no-cache tree
+
 # Refer to Maven build -> finalName
 ARG JAR_FILE=target/spring-boot-web.jar
 
