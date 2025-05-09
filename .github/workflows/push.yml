@@ -5,7 +5,7 @@ on:
     branches: [ "master" ]
 jobs:
   job1:
-    runs-on: [self-hosted, local]
+    runs-on: 
     steps:
     - uses: actions/checkout@v3
     - name: Set up JDK 17
