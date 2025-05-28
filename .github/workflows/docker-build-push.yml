@@ -10,6 +10,9 @@ jobs:
     env:
       IMAGE_NAME: pipe-01
       PROJECT_ID: zekrome-data
+      REGION: us-central1
+      REPOSITORY: autopilot
+      
     steps:
     - name: Checkout
       uses: actions/checkout@v2
@@ -18,7 +21,19 @@ jobs:
       uses: google-github-actions/auth@v1
       with:
           credentials_json: ${{ secrets.SERVICE_ACCOUNT_KEY }}
-          
+
+    - name: Generate Version Tag
+      id: version
+      run: |
+        git fetch --tags
+        latest=$(git tag --sort=-v:refname | grep '^v[0-9]*$' | head -n 1)
+        if [ -z "$latest" ]; then
+          echo "tag=v1" >> $GITHUB_OUTPUT
+        else
+          num=$(echo $latest | cut -c2-)
+          next=v$((num + 1))
+          echo "tag=$next" >> $GITHUB_OUTPUT
+        fi
       # with:
       #   service_account_key: ${{ secrets.SERVICE_ACCOUNT_KEY }}
       #   project_id: ${{ env.PROJECT_ID }} -
@@ -51,8 +66,16 @@ jobs:
       # env:
       #   GIT_TAG: ${{ steps.increment-git-tag.outputs.git-tag }}
       run: |-
-        docker tag $IMAGE_NAME:latest us-central1-docker.pkg.dev/$PROJECT_ID/autopilot/$IMAGE_NAME:latest
-        docker push us-central1-docker.pkg.dev/$PROJECT_ID/autopilot/$IMAGE_NAME:latest
+        VERSION_TAG=${{ steps.version.outputs.tag }}
+        IMAGE_PATH=$REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$IMAGE_NAME
+
+        docker tag $IMAGE_NAME:latest $IMAGE_PATH:latest
+        docker tag $IMAGE_NAME:latest $IMAGE_PATH:$VERSION_TAG
+
+        docker push $IMAGE_PATH:latest
+        docker push $IMAGE_PATH:$VERSION_TAG
+        # docker tag $IMAGE_NAME:latest us-central1-docker.pkg.dev/$PROJECT_ID/autopilot/$IMAGE_NAME:latest
+        # docker push us-central1-docker.pkg.dev/$PROJECT_ID/autopilot/$IMAGE_NAME:latest
        # docker tag $IMAGE_NAME:latest us-central1-docker.pkg.dev/$PROJECT_ID/images/$IMAGE_NAME:$GIT_TAG
        # docker push us-central1-docker.pkg.dev/$PROJECT_ID/images/$IMAGE_NAME:latest
        # docker push us-central1-docker.pkg.dev/$PROJECT_ID/images/$IMAGE_NAME:$GIT_TAG
