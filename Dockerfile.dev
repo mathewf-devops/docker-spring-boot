@@ -1,5 +1,6 @@
 # Example Dockerfile - customize as needed
 FROM alpine:latest
+RUN apk add --no-cache bash curl
 COPY . /app
 WORKDIR /app
 CMD ["echo", "Hello from your container"]
