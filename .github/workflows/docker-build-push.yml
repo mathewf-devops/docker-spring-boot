@@ -15,6 +15,8 @@ jobs:
       PROJECT_ID: zekrome-data
       REGION: us-central1
       REPOSITORY: autopilot
+      VERSION_PREFIX: "v"
+      VERSION_SUFFIX: ""
       
     steps:
     - name: Checkout
@@ -25,49 +27,56 @@ jobs:
       with:
         credentials_json: ${{ secrets.SERVICE_ACCOUNT_KEY }}
 
-    - name: Fetch Latest vN Tag from Artifact Registry
-      id: get-latest-tag
-      run: |
-        PROJECT_ID="${{ env.PROJECT_ID }}"
-        REGION="${{ env.REGION }}"
-        REPO_NAME="${{ env.REPOSITORY }}"
-        IMAGE_NAME="${{ env.IMAGE_NAME }}"
+    # - name: Fetch Latest vN Tag from Artifact Registry
+    #   id: get-latest-tag
+    #   run: |
+    #     PROJECT_ID="${{ env.PROJECT_ID }}"
+    #     REGION="${{ env.REGION }}"
+    #     REPO_NAME="${{ env.REPOSITORY }}"
+    #     IMAGE_NAME="${{ env.IMAGE_NAME }}"
 
-        FULL_IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${IMAGE_NAME}"
-        echo "Checking existing tags for image: $FULL_IMAGE"
+    #     FULL_IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${IMAGE_NAME}"
+    #     echo "Checking existing tags for image: $FULL_IMAGE"
           
-        TAGS=$(gcloud artifacts docker images list-tags "$FULL_IMAGE" \
-          --format="value(tags)" \
-          --limit=1000 2>/dev/null || true)
+    #     TAGS=$(gcloud artifacts docker images list-tags "$FULL_IMAGE" \
+    #       --format="value(tags)" \
+    #       --limit=1000 2>/dev/null || true)
 
-        if [[ -z "$TAGS" || "$TAGS" == "null" ]]; then
-          NEW_TAG="v1"
-        else 
-          LATEST_TAG=$(echo "$TAGS" | tr ',' '\n' | grep -E '^v[0-9]+$' | sed 's/^v//' | sort -n | tail -n 1)
-          if [[ -z "$LATEST_TAG" ]]; then
-            NEW_TAG="v1"
-          else
-            NEW_TAG="v$((LATEST_TAG + 1))"
-          fi
-        fi
+    #     if [[ -z "$TAGS" || "$TAGS" == "null" ]]; then
+    #       NEW_TAG="v1"
+    #     else 
+    #       LATEST_TAG=$(echo "$TAGS" | tr ',' '\n' | grep -E '^v[0-9]+$' | sed 's/^v//' | sort -n | tail -n 1)
+    #       if [[ -z "$LATEST_TAG" ]]; then
+    #         NEW_TAG="v1"
+    #       else
+    #         NEW_TAG="v$((LATEST_TAG + 1))"
+    #       fi
+    #     fi
 
-        echo "Generated Tag: $NEW_TAG"
-        echo "NEW_TAG=$NEW_TAG" >> $GITHUB_ENV
-        echo "FULL_URI=$FULL_IMAGE" >> $GITHUB_ENV
+    #     echo "Generated Tag: $NEW_TAG"
+    #     echo "NEW_TAG=$NEW_TAG" >> $GITHUB_ENV
+    #     echo "FULL_URI=$FULL_IMAGE" >> $GITHUB_ENV
 
-    - name: Build Docker Image
-      run: docker build -f Dockerfile.dev -t ${{ env.IMAGE_NAME }}:latest .
+    # - name: Build Docker Image
+    #   run: docker build -f Dockerfile.dev -t ${{ env.IMAGE_NAME }}:latest .
 
     - name: Configure Docker Client
       run: |
         gcloud auth configure-docker --quiet
         gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
 
-    - name: Tag and Push Docker Image
-      run: |
-        echo "Pushing to: $FULL_URI:$NEW_TAG"
-        docker tag ${{ env.IMAGE_NAME }}:latest $FULL_URI:$NEW_TAG
-        docker push $FULL_URI:$NEW_TAG
-      env:
-        FULL_URI: ${{ env.FULL_URI }}
-        NEW_TAG: ${{ env.NEW_TAG }}
+    - name: Build and Push
+        run: |
+          TAG="${VERSION_PREFIX}${GITHUB_RUN_NUMBER}${VERSION_SUFFIX}"
+          docker build -f Dockerfile.dev -t ${{ env.REGION }}-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$IMAGE_NAME:$TAG .
+          docker push ${{ env.REGION }}-docker.pkg.dev/$_PROJECT_ID/$REPOSITORY/$IMAGE_NAME:$TAG
+          echo "Pushed image with tag: $TAG"
+
+    # - name: Tag and Push Docker Image
+    #   run: |
+    #     echo "Pushing to: $FULL_URI:$NEW_TAG"
+    #     docker tag ${{ env.IMAGE_NAME }}:latest $FULL_URI:$NEW_TAG
+    #     docker push $FULL_URI:$NEW_TAG
+    #   env:
+    #     FULL_URI: ${{ env.FULL_URI }}
+    #     NEW_TAG: ${{ env.NEW_TAG }}
