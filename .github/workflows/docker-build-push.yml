@@ -68,8 +68,9 @@ jobs:
     - name: Build and Push
       run: |
         TAG="${VERSION_PREFIX}${GITHUB_RUN_NUMBER}${VERSION_SUFFIX}"
-        docker build -f Dockerfile.dev -t ${{ env.REGION }}-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$IMAGE_NAME:$TAG .
-        docker push ${{ env.REGION }}-docker.pkg.dev/$_PROJECT_ID/$REPOSITORY/$IMAGE_NAME:$TAG
+        FULL_IMAGE_PATH="${{ env.REGION }}-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$IMAGE_NAME:$TAG"
+        docker build -f Dockerfile.dev -t "$FULL_IMAGE_PATH" .
+        docker push "$FULL_IMAGE_PATH"
         echo "Pushed image with tag: $TAG"
 
     # - name: Tag and Push Docker Image
