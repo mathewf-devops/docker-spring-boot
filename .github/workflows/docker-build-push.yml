@@ -66,11 +66,11 @@ jobs:
         gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
 
     - name: Build and Push
-        run: |
-          TAG="${VERSION_PREFIX}${GITHUB_RUN_NUMBER}${VERSION_SUFFIX}"
-          docker build -f Dockerfile.dev -t ${{ env.REGION }}-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$IMAGE_NAME:$TAG .
-          docker push ${{ env.REGION }}-docker.pkg.dev/$_PROJECT_ID/$REPOSITORY/$IMAGE_NAME:$TAG
-          echo "Pushed image with tag: $TAG"
+      run: |
+        TAG="${VERSION_PREFIX}${GITHUB_RUN_NUMBER}${VERSION_SUFFIX}"
+        docker build -f Dockerfile.dev -t ${{ env.REGION }}-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$IMAGE_NAME:$TAG .
+        docker push ${{ env.REGION }}-docker.pkg.dev/$_PROJECT_ID/$REPOSITORY/$IMAGE_NAME:$TAG
+        echo "Pushed image with tag: $TAG"
 
     # - name: Tag and Push Docker Image
     #   run: |
