@@ -22,60 +22,51 @@ jobs:
       with:
           credentials_json: ${{ secrets.SERVICE_ACCOUNT_KEY }}
 
-    - name: Generate Version Tag
-      id: version
+    - name: Fetch Latest vN Tag from Artifact Registry
+      id: get-latest-tag
       run: |
-        git fetch --tags
-        latest=$(git tag --sort=-v:refname | grep '^v[0-9]*$' | head -n 1)
-        if [ -z "$latest" ]; then
-          echo "tag=v1" >> $GITHUB_OUTPUT
-        else
-          num=$(echo $latest | cut -c2-)
-          next=v$((num + 1))
-          echo "tag=$next" >> $GITHUB_OUTPUT
+        PROJECT_ID="${{ env.PROJECT_ID }}"
+        REGION="${{ env.REGION }}"
+        REPO_NAME="${{ env.REPO_NAME }}"
+        IMAGE_NAME="${{ env.IMAGE_NAME }}"
+
+        FULL_IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${IMAGE_NAME}"
+        echo "Checking existing tags for image: $FULL_IMAGE"
+          
+        TAGS=$(gcloud artifacts docker images list-tags "$FULL_IMAGE" \
+          --format="value(tags)" \
+          --limit=1000 2>/dev/null || true)
+
+        if [[ -z "$TAGS" || "$TAGS" == "null" ]]; then
+          echo "No existing image found or no tags. Defaulting to v1."
+          NEW_TAG="v1"
+        else 
+          LATEST_TAG=$(echo "$TAGS" | tr ',' '\n' | grep -E '^v[0-9]+$' | sed 's/^v//' | sort -n | tail -n 1)
+          if [[ -z "$LATEST_TAG" ]]; then
+            NEW_TAG="v1"
+          else
+            NEW_TAG="v$((LATEST_TAG + 1))"
+          fi
         fi
-      # with:
-      #   service_account_key: ${{ secrets.SERVICE_ACCOUNT_KEY }}
-      #   project_id: ${{ env.PROJECT_ID }} -
-      #   export_default_credentials: true
+
+        echo "Generated Tag: $NEW_TAG"
+        echo "NEW_TAG=$NEW_TAG" >> $GITHUB_ENV
+        echo "FULL_URI=$FULL_IMAGE" >> $GITHUB_ENV
         
 
     - name: Build Docker Image
       run: docker build -f Dockerfile.dev -t $IMAGE_NAME:latest .
 
-    # - name: Automatic Tagging of Releases
-    #   id: increment-git-tag
-    #   run: |
-    #     bash ./scripts/git_update.sh -v major
 
     - name: Configure Docker Client
       run: |-
         gcloud auth configure-docker --quiet
         gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
 
-    # - name: Push Docker Image to Container Registry (GCR)
-    #   env:
-    #     GIT_TAG: ${{ steps.increment-git-tag.outputs.git-tag }}
-    #   run: |-
-    #     docker tag $IMAGE_NAME:latest gcr.io/$PROJECT_ID/$IMAGE_NAME:latest
-    #     docker tag $IMAGE_NAME:latest gcr.io/$PROJECT_ID/$IMAGE_NAME:$GIT_TAG
-    #     docker push gcr.io/$PROJECT_ID/$IMAGE_NAME:latest
-    #     docker push gcr.io/$PROJECT_ID/$IMAGE_NAME:$GIT_TAG
-
+ 
     - name: Push Docker Image to Artifact Registry
-      # env:
-      #   GIT_TAG: ${{ steps.increment-git-tag.outputs.git-tag }}
       run: |-
-        VERSION_TAG=${{ steps.version.outputs.tag }}
-        IMAGE_PATH=$REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$IMAGE_NAME
+        FULL_URI=${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.IMAGE_NAME }}
 
-        docker tag $IMAGE_NAME:latest $IMAGE_PATH:latest
-        docker tag $IMAGE_NAME:latest $IMAGE_PATH:$VERSION_TAG
-
-        docker push $IMAGE_PATH:latest
-        docker push $IMAGE_PATH:$VERSION_TAG
-        # docker tag $IMAGE_NAME:latest us-central1-docker.pkg.dev/$PROJECT_ID/autopilot/$IMAGE_NAME:latest
-        # docker push us-central1-docker.pkg.dev/$PROJECT_ID/autopilot/$IMAGE_NAME:latest
-       # docker tag $IMAGE_NAME:latest us-central1-docker.pkg.dev/$PROJECT_ID/images/$IMAGE_NAME:$GIT_TAG
-       # docker push us-central1-docker.pkg.dev/$PROJECT_ID/images/$IMAGE_NAME:latest
-       # docker push us-central1-docker.pkg.dev/$PROJECT_ID/images/$IMAGE_NAME:$GIT_TAG
+        docker tag $IMAGE_NAME:latest $FULL_URI:${{ env.NEW_TAG }}
+        docker push $FULL_URI:${{ env.NEW_TAG }}
