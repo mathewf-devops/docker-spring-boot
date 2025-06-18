@@ -1,12 +1,15 @@
 ---
 name: Build and Push Python Image to Google Cloud Platform
+
 on:
   push:
     branches: [ master ]
+
 jobs:
   build-push-gcr:
     name: Build and Push to GCP
-    runs-on: [self-hosted, local] #running on my local machine.
+    runs-on: [self-hosted, local] # running on your local machine
+
     env:
       IMAGE_NAME: pipe-01
       PROJECT_ID: zekrome-data
@@ -20,14 +23,14 @@ jobs:
     - name: Authenticate to Google Cloud
       uses: google-github-actions/auth@v1
       with:
-          credentials_json: ${{ secrets.SERVICE_ACCOUNT_KEY }}
+        credentials_json: ${{ secrets.SERVICE_ACCOUNT_KEY }}
 
     - name: Fetch Latest vN Tag from Artifact Registry
       id: get-latest-tag
       run: |
         PROJECT_ID="${{ env.PROJECT_ID }}"
         REGION="${{ env.REGION }}"
-        REPO_NAME="${{ env.REPO_NAME }}"
+        REPO_NAME="${{ env.REPOSITORY }}"
         IMAGE_NAME="${{ env.IMAGE_NAME }}"
 
         FULL_IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${IMAGE_NAME}"
@@ -38,7 +41,6 @@ jobs:
           --limit=1000 2>/dev/null || true)
 
         if [[ -z "$TAGS" || "$TAGS" == "null" ]]; then
-          echo "No existing image found or no tags. Defaulting to v1."
           NEW_TAG="v1"
         else 
           LATEST_TAG=$(echo "$TAGS" | tr ',' '\n' | grep -E '^v[0-9]+$' | sed 's/^v//' | sort -n | tail -n 1)
@@ -52,21 +54,20 @@ jobs:
         echo "Generated Tag: $NEW_TAG"
         echo "NEW_TAG=$NEW_TAG" >> $GITHUB_ENV
         echo "FULL_URI=$FULL_IMAGE" >> $GITHUB_ENV
-        
 
     - name: Build Docker Image
-      run: docker build -f Dockerfile.dev -t $IMAGE_NAME:latest .
-
+      run: docker build -f Dockerfile.dev -t ${{ env.IMAGE_NAME }}:latest .
 
     - name: Configure Docker Client
-      run: |-
+      run: |
         gcloud auth configure-docker --quiet
-        gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+        gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
 
- 
-    - name: Push Docker Image to Artifact Registry
-      run: |-
-        FULL_URI=${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.IMAGE_NAME }}
-
-        docker tag $IMAGE_NAME:latest $FULL_URI:${{ env.NEW_TAG }}
-        docker push $FULL_URI:${{ env.NEW_TAG }}
+    - name: Tag and Push Docker Image
+      run: |
+        echo "Pushing to: $FULL_URI:$NEW_TAG"
+        docker tag ${{ env.IMAGE_NAME }}:latest $FULL_URI:$NEW_TAG
+        docker push $FULL_URI:$NEW_TAG
+      env:
+        FULL_URI: ${{ env.FULL_URI }}
+        NEW_TAG: ${{ env.NEW_TAG }}
