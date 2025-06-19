@@ -1,6 +1,10 @@
 # v1 - Basic Alpine setup for a sample app
 FROM alpine:latest
 
+LABEL maintainer="devops@example.com"
+LABEL version="1.0.23"
+LABEL description="Alpine-based app container with basic tools"
+
 # Install essential tools
 RUN apk add --no-cache bash curl
 
